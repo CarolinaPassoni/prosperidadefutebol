@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+@theme {
+  --color-prosperidade-dark: #F8F8F8;
+  --color-prosperidade-white: #FFFFFF;
+  --color-prosperidade-red: #D90000;
+  --color-prosperidade-red-bright: #FF1A1A;
+  --color-prosperidade-deep-dark: #111111;
+  
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Oswald", sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-white text-gray-900 antialiased;
+    font-family: var(--font-sans);
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+  }
+}
+
+@keyframes fadeIn {
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scan {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(1000%); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-out forwards;
+}
+
+.animate-scan {
+  animation: scan 6s linear infinite;
+}
