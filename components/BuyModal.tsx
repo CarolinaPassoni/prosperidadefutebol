@@ -8,7 +8,6 @@ interface BuyModalProps {
 
 const SIZES = ['PP', 'P', 'M', 'G', 'GG', 'XG'] as const;
 type Size = (typeof SIZES)[number];
-
 type ModelType = 'masculino' | 'feminino';
 type MemberType = 'socio' | 'nao-socio';
 type QuantityType = '1' | '2';
@@ -28,6 +27,15 @@ type SizeInfo = {
   peitoral: number;
   comprimento: number;
   referencia: string;
+};
+
+type ItemState = {
+  jersey: JerseyKey | null;
+  model: ModelType;
+  size: Size | null;
+  numeroOpcao: 'com' | 'sem' | null;
+  numeroCamisa: string;
+  nomePersonalizado: string;
 };
 
 const SIZE_INFO: Record<ModelType, Record<Size, SizeInfo>> = {
@@ -136,32 +144,28 @@ const MEMBER_DETAILS: Record<MemberType, string[]> = {
   ],
 };
 
+const emptyItem = (): ItemState => ({
+  jersey: null,
+  model: 'masculino',
+  size: null,
+  numeroOpcao: null,
+  numeroCamisa: '',
+  nomePersonalizado: '',
+});
+
 export const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose }) => {
   const [nome, setNome] = useState('');
   const [telefone, setTelefone] = useState('');
   const [memberType, setMemberType] = useState<MemberType | null>(null);
   const [quantity, setQuantity] = useState<QuantityType | null>(null);
-  const [selectedJersey, setSelectedJersey] = useState<JerseyKey | null>(null);
-  const [selectedModel, setSelectedModel] = useState<ModelType>('masculino');
-  const [selectedSize, setSelectedSize] = useState<Size | null>(null);
-
   const [temPatrocinador, setTemPatrocinador] = useState<'sim' | 'nao' | null>(null);
-  const [numeroOpcao, setNumeroOpcao] = useState<'com' | 'sem' | null>(null);
-  const [numeroCamisa, setNumeroCamisa] = useState('');
-  const [nomePersonalizado, setNomePersonalizado] = useState('');
+
+  const [item1, setItem1] = useState<ItemState>(emptyItem());
+  const [item2, setItem2] = useState<ItemState>(emptyItem());
 
   const [sending, setSending] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [errors, setErrors] = useState<{
-    nome?: string;
-    telefone?: string;
-    membro?: string;
-    quantidade?: string;
-    camisa?: string;
-    tamanho?: string;
-    patrocinador?: string;
-    numero?: string;
-  }>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (isOpen) {
@@ -173,13 +177,9 @@ export const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose }) => {
         setTelefone('');
         setMemberType(null);
         setQuantity(null);
-        setSelectedJersey(null);
-        setSelectedModel('masculino');
-        setSelectedSize(null);
         setTemPatrocinador(null);
-        setNumeroOpcao(null);
-        setNumeroCamisa('');
-        setNomePersonalizado('');
+        setItem1(emptyItem());
+        setItem2(emptyItem());
         setSubmitted(false);
         setSending(false);
         setErrors({});
@@ -192,17 +192,18 @@ export const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose }) => {
   }, [isOpen]);
 
   useEffect(() => {
-    setSelectedJersey(null);
+    setItem1(emptyItem());
+    setItem2(emptyItem());
     if (memberType === 'nao-socio') {
       setTemPatrocinador(null);
     }
   }, [memberType]);
 
   useEffect(() => {
-    if (numeroOpcao === 'sem') {
-      setNumeroCamisa('');
+    if (quantity === '1') {
+      setItem2(emptyItem());
     }
-  }, [numeroOpcao]);
+  }, [quantity]);
 
   const formatPhone = (value: string) => {
     const digits = value.replace(/\D/g, '').slice(0, 11);
@@ -223,56 +224,80 @@ export const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose }) => {
     return PRICE_TABLE[memberType][quantity];
   }, [memberType, quantity]);
 
-  const currentSizeInfo = selectedSize ? SIZE_INFO[selectedModel][selectedSize] : null;
+  const validateItem = (item: ItemState, prefix: string, nextErrors: Record<string, string>) => {
+    if (!item.jersey) nextErrors[`${prefix}_camisa`] = 'Selecione a camisa.';
+    if (!item.size) nextErrors[`${prefix}_tamanho`] = 'Selecione o tamanho.';
+    if (!item.numeroOpcao) nextErrors[`${prefix}_numero`] = 'Selecione se quer número.';
+    if (item.numeroOpcao === 'com' && !item.numeroCamisa.trim()) {
+      nextErrors[`${prefix}_numero`] = 'Informe o número da camisa.';
+    }
+  };
 
   const validate = () => {
-    const newErrors: typeof errors = {};
+    const nextErrors: Record<string, string> = {};
 
-    if (!nome.trim()) newErrors.nome = 'Informe seu nome.';
-    if (telefone.replace(/\D/g, '').length < 10) newErrors.telefone = 'Informe um telefone válido.';
-    if (!memberType) newErrors.membro = 'Escolha se é sócio ou não.';
-    if (!quantity) newErrors.quantidade = 'Selecione a quantidade.';
-    if (!selectedJersey) newErrors.camisa = 'Selecione a camisa.';
-    if (!selectedSize) newErrors.tamanho = 'Selecione o tamanho.';
-    if (memberType === 'socio' && !temPatrocinador) newErrors.patrocinador = 'Selecione patrocinador.';
-    if (!numeroOpcao) newErrors.numero = 'Selecione se quer número.';
-    if (numeroOpcao === 'com' && !numeroCamisa.trim()) newErrors.numero = 'Informe o número da camisa.';
+    if (!nome.trim()) nextErrors.nome = 'Informe seu nome.';
+    if (telefone.replace(/\D/g, '').length < 10) nextErrors.telefone = 'Informe um telefone válido.';
+    if (!memberType) nextErrors.membro = 'Escolha se é sócio ou não.';
+    if (!quantity) nextErrors.quantidade = 'Selecione a quantidade.';
+    if (memberType === 'socio' && !temPatrocinador) nextErrors.patrocinador = 'Selecione patrocinador.';
 
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    validateItem(item1, 'item1', nextErrors);
+    if (quantity === '2') validateItem(item2, 'item2', nextErrors);
+
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
   };
 
   const handleEmailSubmit = async () => {
-    if (!validate() || !memberType || !quantity || !selectedJersey || !selectedSize || !numeroOpcao) return;
+    if (!validate() || !memberType || !quantity || !item1.jersey || !item1.size) return;
+    if (quantity === '2' && (!item2.jersey || !item2.size)) return;
 
     setSending(true);
 
     try {
+      const body: Record<string, string> = {
+        nome,
+        telefone,
+        tipo_cliente: MEMBER_LABEL[memberType],
+        quantidade_camisas: quantity,
+        valor: PRICE_TABLE[memberType][quantity],
+        patrocinador: memberType === 'socio' ? (temPatrocinador || '') : 'não se aplica',
+        _subject: 'Novo pedido de camisa - Prosperidade FC',
+        _template: 'table',
+      };
+
+      const item1Info = SIZE_INFO[item1.model][item1.size];
+      body.camisa_1 = JERSEYS[item1.jersey].title;
+      body.versao_1 = JERSEYS[item1.jersey].subtitle;
+      body.modelagem_1 = item1.model;
+      body.tamanho_1 = item1.size;
+      body.numero_1 = item1.numeroOpcao === 'com' ? item1.numeroCamisa : 'sem número';
+      body.personalizar_nome_1 = item1.nomePersonalizado.trim() || 'não informado';
+      body.peitoral_1 = `${item1Info.peitoral} cm`;
+      body.comprimento_1 = `${item1Info.comprimento} cm`;
+      body.referencia_1 = item1Info.referencia;
+
+      if (quantity === '2' && item2.jersey && item2.size) {
+        const item2Info = SIZE_INFO[item2.model][item2.size];
+        body.camisa_2 = JERSEYS[item2.jersey].title;
+        body.versao_2 = JERSEYS[item2.jersey].subtitle;
+        body.modelagem_2 = item2.model;
+        body.tamanho_2 = item2.size;
+        body.numero_2 = item2.numeroOpcao === 'com' ? item2.numeroCamisa : 'sem número';
+        body.personalizar_nome_2 = item2.nomePersonalizado.trim() || 'não informado';
+        body.peitoral_2 = `${item2Info.peitoral} cm`;
+        body.comprimento_2 = `${item2Info.comprimento} cm`;
+        body.referencia_2 = item2Info.referencia;
+      }
+
       const response = await fetch('https://formsubmit.co/ajax/prosperidadefutebolclube@gmail.com', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },
-        body: JSON.stringify({
-          nome,
-          telefone,
-          tipo_cliente: MEMBER_LABEL[memberType],
-          quantidade_camisas: quantity,
-          valor: PRICE_TABLE[memberType][quantity],
-          camisa: JERSEYS[selectedJersey].title,
-          versao: JERSEYS[selectedJersey].subtitle,
-          modelagem: selectedModel,
-          tamanho: selectedSize,
-          patrocinador: memberType === 'socio' ? temPatrocinador : 'não se aplica',
-          numero: numeroOpcao === 'com' ? numeroCamisa : 'sem número',
-          personalizar_nome: nomePersonalizado.trim() || 'não informado',
-          peitoral: `${SIZE_INFO[selectedModel][selectedSize].peitoral} cm`,
-          comprimento: `${SIZE_INFO[selectedModel][selectedSize].comprimento} cm`,
-          referencia: SIZE_INFO[selectedModel][selectedSize].referencia,
-          _subject: 'Novo pedido de camisa - Prosperidade FC',
-          _template: 'table',
-        }),
+        body: JSON.stringify(body),
       });
 
       if (response.ok) {
@@ -286,6 +311,208 @@ export const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose }) => {
       setSending(false);
     }
   };
+
+  const renderItemBlock = (
+    title: string,
+    item: ItemState,
+    setItem: React.Dispatch<React.SetStateAction<ItemState>>,
+    prefix: string
+  ) => {
+    const currentSizeInfo = item.size ? SIZE_INFO[item.model][item.size] : null;
+
+    return (
+      <div className="rounded-3xl border border-gray-100 bg-white p-5 space-y-5">
+        <h3 className="text-sm font-black uppercase tracking-[0.2em] text-gray-800">
+          {title}
+        </h3>
+
+        <div>
+          <p className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-3">
+            Escolha a camisa
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            {availableJerseys.map(([key, jersey]) => {
+              const active = item.jersey === key;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setItem((prev) => ({ ...prev, jersey: key as JerseyKey }))}
+                  className={`group text-left rounded-3xl overflow-hidden border-2 transition-all ${
+                    active
+                      ? 'border-prosperidade-red shadow-lg shadow-prosperidade-red/20 scale-[1.01]'
+                      : 'border-gray-200 hover:border-prosperidade-red/50'
+                  }`}
+                >
+                  <div className="aspect-[4/5] bg-gray-100 overflow-hidden">
+                    <SmartImage
+                      basePath={jersey.basePath}
+                      alt={jersey.title}
+                      className="w-full h-full object-contain bg-white"
+                    />
+                  </div>
+                  <div className="p-4 bg-white">
+                    <p className="text-sm font-black uppercase tracking-[0.12em] text-gray-900">
+                      {jersey.title}
+                    </p>
+                    <p className="text-xs text-gray-500 uppercase tracking-[0.15em] mt-1">
+                      {jersey.subtitle}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          {errors[`${prefix}_camisa`] && <p className="text-red-500 text-xs mt-3">{errors[`${prefix}_camisa`]}</p>}
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <button
+            type="button"
+            onClick={() => setItem((prev) => ({ ...prev, model: 'masculino' }))}
+            className={`rounded-2xl px-4 py-4 border-2 text-sm font-black uppercase tracking-[0.12em] transition-all ${
+              item.model === 'masculino'
+                ? 'bg-prosperidade-red text-white border-prosperidade-red shadow-lg shadow-prosperidade-red/20'
+                : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-prosperidade-red/40'
+            }`}
+          >
+            Masculino
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setItem((prev) => ({ ...prev, model: 'feminino' }))}
+            className={`rounded-2xl px-4 py-4 border-2 text-sm font-black uppercase tracking-[0.12em] transition-all ${
+              item.model === 'feminino'
+                ? 'bg-prosperidade-red text-white border-prosperidade-red shadow-lg shadow-prosperidade-red/20'
+                : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-prosperidade-red/40'
+            }`}
+          >
+            Feminino
+          </button>
+        </div>
+
+        <div>
+          <p className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-3">
+            Tamanho
+          </p>
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+            {SIZES.map((size) => {
+              const active = item.size === size;
+              return (
+                <button
+                  key={size}
+                  type="button"
+                  onClick={() => setItem((prev) => ({ ...prev, size }))}
+                  className={`py-3 rounded-2xl text-sm font-black uppercase transition-all border-2 ${
+                    active
+                      ? 'bg-prosperidade-red text-white border-prosperidade-red shadow-lg shadow-prosperidade-red/20'
+                      : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-prosperidade-red/50'
+                  }`}
+                >
+                  {size}
+                </button>
+              );
+            })}
+          </div>
+          {errors[`${prefix}_tamanho`] && <p className="text-red-500 text-xs mt-3">{errors[`${prefix}_tamanho`]}</p>}
+        </div>
+
+        <div>
+          <p className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-3">
+            Número
+          </p>
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <button
+              type="button"
+              onClick={() => setItem((prev) => ({ ...prev, numeroOpcao: 'com' }))}
+              className={`rounded-2xl px-4 py-4 border-2 text-sm font-black uppercase tracking-[0.12em] transition-all ${
+                item.numeroOpcao === 'com'
+                  ? 'bg-prosperidade-red text-white border-prosperidade-red shadow-lg shadow-prosperidade-red/20'
+                  : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-prosperidade-red/40'
+              }`}
+            >
+              Com número
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setItem((prev) => ({ ...prev, numeroOpcao: 'sem', numeroCamisa: '' }))}
+              className={`rounded-2xl px-4 py-4 border-2 text-sm font-black uppercase tracking-[0.12em] transition-all ${
+                item.numeroOpcao === 'sem'
+                  ? 'bg-prosperidade-red text-white border-prosperidade-red shadow-lg shadow-prosperidade-red/20'
+                  : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-prosperidade-red/40'
+              }`}
+            >
+              Sem número
+            </button>
+          </div>
+
+          {item.numeroOpcao === 'com' && (
+            <input
+              type="text"
+              value={item.numeroCamisa}
+              onChange={(e) => setItem((prev) => ({ ...prev, numeroCamisa: e.target.value }))}
+              placeholder="Ex: 10"
+              className="w-full border rounded-2xl px-4 py-3 text-sm text-gray-900 bg-white outline-none focus:ring-2 focus:ring-prosperidade-red/30 border-gray-200"
+            />
+          )}
+
+          {errors[`${prefix}_numero`] && <p className="text-red-500 text-xs mt-3">{errors[`${prefix}_numero`]}</p>}
+        </div>
+
+        <div>
+          <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-1.5">
+            Personalizar nome
+          </label>
+          <input
+            type="text"
+            value={item.nomePersonalizado}
+            onChange={(e) => setItem((prev) => ({ ...prev, nomePersonalizado: e.target.value }))}
+            placeholder="Opcional"
+            className="w-full border rounded-2xl px-4 py-3 text-sm text-gray-900 bg-white outline-none focus:ring-2 focus:ring-prosperidade-red/30 border-gray-200"
+          />
+        </div>
+
+        {currentSizeInfo && (
+          <div className="rounded-3xl overflow-hidden border border-gray-100 bg-gray-50">
+            <div className="p-5">
+              <h4 className="text-sm font-black uppercase tracking-[0.15em] text-gray-900 mb-4">
+                Medidas do tamanho {item.size}
+              </h4>
+
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="rounded-2xl bg-white border border-gray-100 p-4">
+                  <span className="text-gray-400 uppercase tracking-wider text-xs">Peitoral</span>
+                  <p className="text-gray-900 font-black mt-1">{currentSizeInfo.peitoral} cm</p>
+                </div>
+
+                <div className="rounded-2xl bg-white border border-gray-100 p-4">
+                  <span className="text-gray-400 uppercase tracking-wider text-xs">Comprimento</span>
+                  <p className="text-gray-900 font-black mt-1">{currentSizeInfo.comprimento} cm</p>
+                </div>
+
+                <div className="rounded-2xl bg-white border border-gray-100 p-4 col-span-2">
+                  <span className="text-gray-400 uppercase tracking-wider text-xs">Referência</span>
+                  <p className="text-gray-900 font-black mt-1">{currentSizeInfo.referencia}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t border-gray-100 bg-white p-4">
+              <SmartImage
+                basePath={currentSizeInfo.tabelaBase}
+                alt={`Tabela de medidas ${item.model} ${item.size}`}
+                className="w-full max-h-[420px] object-contain mx-auto rounded-2xl"
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const previewJersey = item1.jersey || item2.jersey;
 
   if (!isOpen) return null;
 
@@ -320,11 +547,6 @@ export const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose }) => {
 
         {submitted ? (
           <div className="p-8 md:p-12 text-center">
-            <div className="mx-auto w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mb-5">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
             <h3 className="text-2xl font-bold text-gray-900">Pedido enviado com sucesso</h3>
             <p className="mt-3 text-gray-500">
               Obrigado, <strong>{nome}</strong>. Seu pedido foi enviado para o e-mail de atendimento.
@@ -381,7 +603,6 @@ export const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose }) => {
                     );
                   })}
                 </div>
-
                 {errors.membro && <p className="text-red-500 text-xs mt-3">{errors.membro}</p>}
               </div>
 
@@ -416,55 +637,12 @@ export const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose }) => {
                         );
                       })}
                     </div>
-
                     {errors.quantidade && <p className="text-red-500 text-xs mt-3">{errors.quantidade}</p>}
-                  </div>
-
-                  <div className="rounded-3xl border border-gray-100 bg-white p-5">
-                    <h3 className="text-sm font-black uppercase tracking-[0.2em] text-gray-800 mb-4">
-                      3. Escolha a camisa
-                    </h3>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-                      {availableJerseys.map(([key, jersey]) => {
-                        const active = selectedJersey === key;
-                        return (
-                          <button
-                            key={key}
-                            type="button"
-                            onClick={() => setSelectedJersey(key as JerseyKey)}
-                            className={`group text-left rounded-3xl overflow-hidden border-2 transition-all ${
-                              active
-                                ? 'border-prosperidade-red shadow-lg shadow-prosperidade-red/20 scale-[1.01]'
-                                : 'border-gray-200 hover:border-prosperidade-red/50'
-                            }`}
-                          >
-                            <div className="aspect-[4/5] bg-gray-100 overflow-hidden">
-                              <SmartImage
-                                basePath={jersey.basePath}
-                                alt={jersey.title}
-                                className="w-full h-full object-contain bg-white"
-                              />
-                            </div>
-                            <div className="p-4 bg-white">
-                              <p className="text-sm font-black uppercase tracking-[0.12em] text-gray-900">
-                                {jersey.title}
-                              </p>
-                              <p className="text-xs text-gray-500 uppercase tracking-[0.15em] mt-1">
-                                {jersey.subtitle}
-                              </p>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {errors.camisa && <p className="text-red-500 text-xs mt-3">{errors.camisa}</p>}
                   </div>
 
                   <div className="rounded-3xl border border-gray-100 bg-gray-50 p-5">
                     <h3 className="text-sm font-black uppercase tracking-[0.2em] text-gray-800 mb-4">
-                      4. Seus dados
+                      3. Seus dados
                     </h3>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -477,9 +655,7 @@ export const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose }) => {
                           value={nome}
                           onChange={(e) => setNome(e.target.value)}
                           placeholder="Seu nome"
-                          className={`w-full border rounded-2xl px-4 py-3 text-sm text-gray-900 bg-white outline-none focus:ring-2 focus:ring-prosperidade-red/30 ${
-                            errors.nome ? 'border-red-400' : 'border-gray-200'
-                          }`}
+                          className="w-full border rounded-2xl px-4 py-3 text-sm text-gray-900 bg-white outline-none focus:ring-2 focus:ring-prosperidade-red/30 border-gray-200"
                         />
                         {errors.nome && <p className="text-red-500 text-xs mt-1">{errors.nome}</p>}
                       </div>
@@ -493,9 +669,7 @@ export const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose }) => {
                           value={telefone}
                           onChange={(e) => setTelefone(formatPhone(e.target.value))}
                           placeholder="(99) 99999-9999"
-                          className={`w-full border rounded-2xl px-4 py-3 text-sm text-gray-900 bg-white outline-none focus:ring-2 focus:ring-prosperidade-red/30 ${
-                            errors.telefone ? 'border-red-400' : 'border-gray-200'
-                          }`}
+                          className="w-full border rounded-2xl px-4 py-3 text-sm text-gray-900 bg-white outline-none focus:ring-2 focus:ring-prosperidade-red/30 border-gray-200"
                         />
                         {errors.telefone && <p className="text-red-500 text-xs mt-1">{errors.telefone}</p>}
                       </div>
@@ -505,7 +679,7 @@ export const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose }) => {
                   {memberType === 'socio' && (
                     <div className="rounded-3xl border border-gray-100 bg-white p-5">
                       <h3 className="text-sm font-black uppercase tracking-[0.2em] text-gray-800 mb-4">
-                        5. Patrocinador
+                        4. Patrocinador
                       </h3>
 
                       <div className="grid grid-cols-2 gap-4">
@@ -524,134 +698,12 @@ export const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose }) => {
                           </button>
                         ))}
                       </div>
-
                       {errors.patrocinador && <p className="text-red-500 text-xs mt-3">{errors.patrocinador}</p>}
                     </div>
                   )}
 
-                  <div className="rounded-3xl border border-gray-100 bg-white p-5">
-                    <h3 className="text-sm font-black uppercase tracking-[0.2em] text-gray-800 mb-4">
-                      6. Número e nome
-                    </h3>
-
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                      <button
-                        type="button"
-                        onClick={() => setNumeroOpcao('com')}
-                        className={`rounded-2xl px-4 py-4 border-2 text-sm font-black uppercase tracking-[0.12em] transition-all ${
-                          numeroOpcao === 'com'
-                            ? 'bg-prosperidade-red text-white border-prosperidade-red shadow-lg shadow-prosperidade-red/20'
-                            : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-prosperidade-red/40'
-                        }`}
-                      >
-                        Com número
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setNumeroOpcao('sem')}
-                        className={`rounded-2xl px-4 py-4 border-2 text-sm font-black uppercase tracking-[0.12em] transition-all ${
-                          numeroOpcao === 'sem'
-                            ? 'bg-prosperidade-red text-white border-prosperidade-red shadow-lg shadow-prosperidade-red/20'
-                            : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-prosperidade-red/40'
-                        }`}
-                      >
-                        Sem número
-                      </button>
-                    </div>
-
-                    {numeroOpcao === 'com' && (
-                      <div className="mb-4">
-                        <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-1.5">
-                          Número da camisa
-                        </label>
-                        <input
-                          type="text"
-                          value={numeroCamisa}
-                          onChange={(e) => setNumeroCamisa(e.target.value)}
-                          placeholder="Ex: 10"
-                          className={`w-full border rounded-2xl px-4 py-3 text-sm text-gray-900 bg-white outline-none focus:ring-2 focus:ring-prosperidade-red/30 ${
-                            errors.numero ? 'border-red-400' : 'border-gray-200'
-                          }`}
-                        />
-                      </div>
-                    )}
-
-                    <div>
-                      <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-1.5">
-                        Personalizar nome
-                      </label>
-                      <input
-                        type="text"
-                        value={nomePersonalizado}
-                        onChange={(e) => setNomePersonalizado(e.target.value)}
-                        placeholder="Opcional"
-                        className="w-full border rounded-2xl px-4 py-3 text-sm text-gray-900 bg-white outline-none focus:ring-2 focus:ring-prosperidade-red/30 border-gray-200"
-                      />
-                    </div>
-
-                    {errors.numero && <p className="text-red-500 text-xs mt-3">{errors.numero}</p>}
-                  </div>
-
-                  <div className="rounded-3xl border border-gray-100 bg-white p-5">
-                    <h3 className="text-sm font-black uppercase tracking-[0.2em] text-gray-800 mb-4">
-                      7. Modelagem
-                    </h3>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedModel('masculino')}
-                        className={`rounded-2xl px-4 py-4 border-2 text-sm font-black uppercase tracking-[0.12em] transition-all ${
-                          selectedModel === 'masculino'
-                            ? 'bg-prosperidade-red text-white border-prosperidade-red shadow-lg shadow-prosperidade-red/20'
-                            : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-prosperidade-red/40'
-                        }`}
-                      >
-                        Masculino
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setSelectedModel('feminino')}
-                        className={`rounded-2xl px-4 py-4 border-2 text-sm font-black uppercase tracking-[0.12em] transition-all ${
-                          selectedModel === 'feminino'
-                            ? 'bg-prosperidade-red text-white border-prosperidade-red shadow-lg shadow-prosperidade-red/20'
-                            : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-prosperidade-red/40'
-                        }`}
-                      >
-                        Feminino
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="rounded-3xl border border-gray-100 bg-white p-5">
-                    <h3 className="text-sm font-black uppercase tracking-[0.2em] text-gray-800 mb-4">
-                      8. Tamanho
-                    </h3>
-
-                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
-                      {SIZES.map((size) => {
-                        const active = selectedSize === size;
-                        return (
-                          <button
-                            key={size}
-                            type="button"
-                            onClick={() => setSelectedSize(size)}
-                            className={`py-3 rounded-2xl text-sm font-black uppercase transition-all border-2 ${
-                              active
-                                ? 'bg-prosperidade-red text-white border-prosperidade-red shadow-lg shadow-prosperidade-red/20'
-                                : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-prosperidade-red/50'
-                            }`}
-                          >
-                            {size}
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {errors.tamanho && <p className="text-red-500 text-xs mt-3">{errors.tamanho}</p>}
-                  </div>
+                  {renderItemBlock('5. Camisa 1', item1, setItem1, 'item1')}
+                  {quantity === '2' && renderItemBlock('6. Camisa 2', item2, setItem2, 'item2')}
                 </>
               )}
             </div>
@@ -659,10 +711,10 @@ export const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose }) => {
             <div className="space-y-5">
               <div className="rounded-3xl overflow-hidden border border-gray-100 bg-white shadow-lg sticky top-28">
                 <div className="aspect-[4/5] bg-gray-100">
-                  {selectedJersey ? (
+                  {previewJersey ? (
                     <SmartImage
-                      basePath={JERSEYS[selectedJersey].basePath}
-                      alt={JERSEYS[selectedJersey].title}
+                      basePath={JERSEYS[previewJersey].basePath}
+                      alt={JERSEYS[previewJersey].title}
                       className="w-full h-full object-contain bg-white"
                     />
                   ) : (
@@ -693,13 +745,6 @@ export const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose }) => {
                     </div>
 
                     <div className="flex items-start justify-between gap-4">
-                      <span className="text-gray-400 uppercase tracking-wider">Camisa</span>
-                      <span className="font-bold text-gray-800 text-right">
-                        {selectedJersey ? `${JERSEYS[selectedJersey].title} · ${JERSEYS[selectedJersey].subtitle}` : 'Não selecionada'}
-                      </span>
-                    </div>
-
-                    <div className="flex items-start justify-between gap-4">
                       <span className="text-gray-400 uppercase tracking-wider">Patrocinador</span>
                       <span className="font-bold text-gray-800 text-right">
                         {memberType === 'socio'
@@ -713,76 +758,103 @@ export const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose }) => {
                     </div>
 
                     <div className="flex items-start justify-between gap-4">
-                      <span className="text-gray-400 uppercase tracking-wider">Número</span>
-                      <span className="font-bold text-gray-800 text-right">
-                        {numeroOpcao === 'com' ? numeroCamisa || 'Não informado' : numeroOpcao === 'sem' ? 'Sem número' : 'Não selecionado'}
-                      </span>
-                    </div>
-
-                    <div className="flex items-start justify-between gap-4">
-                      <span className="text-gray-400 uppercase tracking-wider">Nome</span>
-                      <span className="font-bold text-gray-800 text-right">
-                        {nomePersonalizado || 'Sem personalização'}
-                      </span>
-                    </div>
-
-                    <div className="flex items-start justify-between gap-4">
-                      <span className="text-gray-400 uppercase tracking-wider">Modelagem</span>
-                      <span className="font-bold text-gray-800 text-right capitalize">
-                        {selectedModel}
-                      </span>
-                    </div>
-
-                    <div className="flex items-start justify-between gap-4">
-                      <span className="text-gray-400 uppercase tracking-wider">Tamanho</span>
-                      <span className="font-bold text-gray-800 text-right">
-                        {selectedSize || 'Não selecionado'}
-                      </span>
-                    </div>
-
-                    <div className="flex items-start justify-between gap-4">
                       <span className="text-gray-400 uppercase tracking-wider">Valor</span>
                       <span className="font-black text-prosperidade-red text-right">
                         {selectedPrice || '--'}
                       </span>
                     </div>
                   </div>
-                </div>
 
-                {selectedSize && currentSizeInfo && (
-                  <div className="border-t border-gray-100 bg-gray-50">
-                    <div className="p-5">
-                      <h4 className="text-sm font-black uppercase tracking-[0.15em] text-gray-900 mb-4">
-                        Medidas do tamanho {selectedSize}
-                      </h4>
+                  {item1.jersey && (
+                    <div className="mt-5 rounded-2xl border border-gray-100 p-4 bg-gray-50">
+                      <p className="text-xs font-black uppercase tracking-[0.15em] text-gray-900 mb-3">
+                        Camisa 1
+                      </p>
 
-                      <div className="grid grid-cols-2 gap-3 text-sm">
-                        <div className="rounded-2xl bg-white border border-gray-100 p-4">
-                          <span className="text-gray-400 uppercase tracking-wider text-xs">Peitoral</span>
-                          <p className="text-gray-900 font-black mt-1">{currentSizeInfo.peitoral} cm</p>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between gap-4">
+                          <span className="text-gray-400 uppercase tracking-wider">Modelo</span>
+                          <span className="font-bold text-gray-800 text-right">
+                            {JERSEYS[item1.jersey].title} · {JERSEYS[item1.jersey].subtitle}
+                          </span>
                         </div>
 
-                        <div className="rounded-2xl bg-white border border-gray-100 p-4">
-                          <span className="text-gray-400 uppercase tracking-wider text-xs">Comprimento</span>
-                          <p className="text-gray-900 font-black mt-1">{currentSizeInfo.comprimento} cm</p>
+                        <div className="flex justify-between gap-4">
+                          <span className="text-gray-400 uppercase tracking-wider">Modelagem</span>
+                          <span className="font-bold text-gray-800 text-right capitalize">{item1.model}</span>
                         </div>
 
-                        <div className="rounded-2xl bg-white border border-gray-100 p-4 col-span-2">
-                          <span className="text-gray-400 uppercase tracking-wider text-xs">Referência</span>
-                          <p className="text-gray-900 font-black mt-1">{currentSizeInfo.referencia}</p>
+                        <div className="flex justify-between gap-4">
+                          <span className="text-gray-400 uppercase tracking-wider">Tamanho</span>
+                          <span className="font-bold text-gray-800 text-right">{item1.size || '--'}</span>
+                        </div>
+
+                        <div className="flex justify-between gap-4">
+                          <span className="text-gray-400 uppercase tracking-wider">Número</span>
+                          <span className="font-bold text-gray-800 text-right">
+                            {item1.numeroOpcao === 'com'
+                              ? item1.numeroCamisa || 'Não informado'
+                              : item1.numeroOpcao === 'sem'
+                              ? 'Sem número'
+                              : '--'}
+                          </span>
+                        </div>
+
+                        <div className="flex justify-between gap-4">
+                          <span className="text-gray-400 uppercase tracking-wider">Nome</span>
+                          <span className="font-bold text-gray-800 text-right">
+                            {item1.nomePersonalizado || 'Sem personalização'}
+                          </span>
                         </div>
                       </div>
                     </div>
+                  )}
 
-                    <div className="border-t border-gray-100 bg-white p-4">
-                      <SmartImage
-                        basePath={currentSizeInfo.tabelaBase}
-                        alt={`Tabela de medidas ${selectedModel} ${selectedSize}`}
-                        className="w-full max-h-[420px] object-contain mx-auto rounded-2xl"
-                      />
+                  {quantity === '2' && item2.jersey && (
+                    <div className="mt-4 rounded-2xl border border-gray-100 p-4 bg-gray-50">
+                      <p className="text-xs font-black uppercase tracking-[0.15em] text-gray-900 mb-3">
+                        Camisa 2
+                      </p>
+
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between gap-4">
+                          <span className="text-gray-400 uppercase tracking-wider">Modelo</span>
+                          <span className="font-bold text-gray-800 text-right">
+                            {JERSEYS[item2.jersey].title} · {JERSEYS[item2.jersey].subtitle}
+                          </span>
+                        </div>
+
+                        <div className="flex justify-between gap-4">
+                          <span className="text-gray-400 uppercase tracking-wider">Modelagem</span>
+                          <span className="font-bold text-gray-800 text-right capitalize">{item2.model}</span>
+                        </div>
+
+                        <div className="flex justify-between gap-4">
+                          <span className="text-gray-400 uppercase tracking-wider">Tamanho</span>
+                          <span className="font-bold text-gray-800 text-right">{item2.size || '--'}</span>
+                        </div>
+
+                        <div className="flex justify-between gap-4">
+                          <span className="text-gray-400 uppercase tracking-wider">Número</span>
+                          <span className="font-bold text-gray-800 text-right">
+                            {item2.numeroOpcao === 'com'
+                              ? item2.numeroCamisa || 'Não informado'
+                              : item2.numeroOpcao === 'sem'
+                              ? 'Sem número'
+                              : '--'}
+                          </span>
+                        </div>
+
+                        <div className="flex justify-between gap-4">
+                          <span className="text-gray-400 uppercase tracking-wider">Nome</span>
+                          <span className="font-bold text-gray-800 text-right">
+                            {item2.nomePersonalizado || 'Sem personalização'}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
 
                 <div className="p-5 border-t border-gray-100">
                   <button
